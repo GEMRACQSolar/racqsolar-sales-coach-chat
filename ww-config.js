@@ -11,7 +11,8 @@ export default {
       "packageData", 
       "customerData",
       "showChat",
-      "initialMessage"
+      "initialMessage",
+      "initialResponse"
     ]
   },
   
@@ -63,6 +64,14 @@ export default {
       type: "Text",
       bindable: true,
       defaultValue: "Help me sell this package"
+    },
+    initialResponse: {
+      label: {
+        en: "Initial Response"
+      },
+      type: "Object",
+      bindable: true,
+      defaultValue: null
     }
   },
   
