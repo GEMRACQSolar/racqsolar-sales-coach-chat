@@ -1,0 +1,19 @@
+{
+  "name": "racqsolar-sales-coach-chat",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GEMRACQSolar/racqsolar-sales-coach-chat"
+  },
+  "version": "1.0.0",
+  "license": "MIT",
+  "scripts": {
+    "build": "weweb build",
+    "serve": "weweb serve"
+  },
+  "dependencies": {
+    "vue": "3.2.45"
+  },
+  "devDependencies": {
+    "@weweb/cli": "latest"
+  }
+}
