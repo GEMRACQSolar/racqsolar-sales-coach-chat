@@ -133,6 +133,36 @@ export default {
         }
       },
       immediate: true
+    },
+    
+    // Watch for initial response from workflow
+    'content.initialResponse': {
+      handler(newVal) {
+        if (newVal && !this.hasInitialized && this.isVisible) {
+          this.hasInitialized = true;
+          
+          // Add the initial response to chat history
+          const assistantMessage = {
+            id: Date.now(),
+            role: 'assistant',
+            content: newVal.response || newVal,
+            suggestedQuestions: newVal.suggestedQuestions || []
+          };
+          
+          this.chatHistory.push(assistantMessage);
+          
+          this.$emit('trigger-event', {
+            name: 'initial:response:displayed',
+            event: {
+              response: assistantMessage.content,
+              timestamp: new Date().toISOString()
+            }
+          });
+          
+          this.$nextTick(() => this.scrollToBottom());
+        }
+      },
+      immediate: true
     }
   },
   
@@ -146,12 +176,20 @@ export default {
         event: { timestamp: new Date().toISOString() }
       });
       
-      // Send initial message if first time
-      if (!this.hasInitialized && this.content.initialMessage) {
+      // Check if we have an initial response to display
+      if (!this.hasInitialized && this.content.initialResponse) {
         this.hasInitialized = true;
-        this.$nextTick(() => {
-          this.sendMessage(this.content.initialMessage);
-        });
+        
+        const assistantMessage = {
+          id: Date.now(),
+          role: 'assistant',
+          content: this.content.initialResponse.response || this.content.initialResponse,
+          suggestedQuestions: this.content.initialResponse.suggestedQuestions || []
+        };
+        
+        this.chatHistory.push(assistantMessage);
+        
+        this.$nextTick(() => this.scrollToBottom());
       }
     },
     
