@@ -108,6 +108,14 @@ export default {
       }
     },
     {
+      name: "initial:response:displayed",
+      label: { en: "On Initial Response Displayed" },
+      event: {
+        response: "",
+        timestamp: ""
+      }
+    },
+    {
       name: "api:error",
       label: { en: "On API Error" },
       event: {
