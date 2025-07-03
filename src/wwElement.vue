@@ -2,7 +2,7 @@
   <div class="sales-coach-wrapper">
     <!-- Test indicator -->
     <div style="position: fixed; top: 20px; left: 20px; background: #4CAF50; color: white; padding: 10px; border-radius: 4px; z-index: 10000;">
-      Component Rendering ✓ - With Suggested Questions
+      Component Rendering ✓ - With API Integration
     </div>
     
     <!-- Chat Container -->
@@ -35,6 +35,16 @@
           {{ message.content }}
         </div>
         
+        <!-- Loading indicator -->
+        <div v-if="isLoading" style="display: flex; align-items: center; gap: 10px; color: #888; margin: 10px 0;">
+          <div style="display: flex; gap: 4px;">
+            <span style="animation: bounce 1.4s infinite ease-in-out; animation-delay: -0.32s;">•</span>
+            <span style="animation: bounce 1.4s infinite ease-in-out; animation-delay: -0.16s;">•</span>
+            <span style="animation: bounce 1.4s infinite ease-in-out;">•</span>
+          </div>
+          <span style="font-size: 14px;">Sales Coach is thinking...</span>
+        </div>
+        
         <!-- Suggested Questions -->
         <div v-if="showSuggestedQuestions && suggestedQuestions.length > 0" style="margin-top: 15px;">
           <p style="color: #888; font-size: 12px; margin-bottom: 10px;">Suggested questions:</p>
@@ -43,6 +53,7 @@
               v-for="(question, index) in suggestedQuestions" 
               :key="'q-' + index"
               @click="askSuggestedQuestion(question)"
+              :disabled="isLoading"
               style="background: rgba(255, 230, 0, 0.1); border: 1px solid rgba(255, 230, 0, 0.3); color: #FFE600; padding: 8px 12px; border-radius: 6px; text-align: left; cursor: pointer; font-size: 13px; transition: all 0.2s;"
               @mouseover="$event.target.style.background = 'rgba(255, 230, 0, 0.2)'"
               @mouseout="$event.target.style.background = 'rgba(255, 230, 0, 0.1)'"
@@ -58,12 +69,15 @@
         <input 
           v-model="currentMessage" 
           @keyup.enter="sendMessage"
+          :disabled="isLoading"
           placeholder="Type a message..."
           style="flex: 1; background: #2a2a3e; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 10px 15px; color: white;"
         >
         <button 
           @click="sendMessage"
-          style="background: #FFE600; color: #003478; border: none; border-radius: 8px; padding: 10px 20px; cursor: pointer;"
+          :disabled="isLoading || !currentMessage.trim()"
+          style="background: #FFE600; color: #003478; border: none; border-radius: 8px; padding: 10px 20px; cursor: pointer; opacity: 1;"
+          :style="{ opacity: (isLoading || !currentMessage.trim()) ? '0.5' : '1' }"
         >
           Send
         </button>
@@ -86,12 +100,14 @@ export default {
       chatHistory: [],
       hasInitialized: false,
       showSuggestedQuestions: true,
-      suggestedQuestions: []
+      suggestedQuestions: [],
+      isLoading: false,
+      conversationHistory: [] // For API context
     }
   },
   
   mounted() {
-    console.log('🎯 PROGRESSIVE TEST - WITH SUGGESTED QUESTIONS');
+    console.log('🎯 PROGRESSIVE TEST - WITH API INTEGRATION');
     console.log('Props:', this.content);
     
     // Initialize based on current prop values
@@ -171,34 +187,79 @@ export default {
       this.$emit('update:content', { ...this.content, showChat: false });
     },
     
-    sendMessage() {
-      if (!this.currentMessage.trim()) return;
+    async sendMessage() {
+      if (!this.currentMessage.trim() || this.isLoading) return;
       
-      // Add user message
+      const userMessage = this.currentMessage.trim();
+      
+      // Add user message to chat
       this.chatHistory.push({
         role: 'user',
-        content: this.currentMessage
+        content: userMessage
       });
       
       // Hide suggested questions after first message
       this.showSuggestedQuestions = false;
       
-      // Add fake assistant response for testing
-      const userMessage = this.currentMessage;
-      setTimeout(() => {
+      // Clear input and show loading
+      this.currentMessage = '';
+      this.isLoading = true;
+      this.scrollToBottom();
+      
+      try {
+        // Call the API
+        const response = await fetch('https://n8n.racqsolar.com.au/webhook/racq-sales-coach', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: userMessage,
+            conversationHistory: this.conversationHistory,
+            customerContext: this.content.customerContext || {},
+            quoteData: this.content.quoteData || {}
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error('API request failed');
+        }
+        
+        const data = await response.json();
+        console.log('API Response:', data);
+        
+        // Add assistant response
         this.chatHistory.push({
           role: 'assistant',
-          content: `I received your message: "${userMessage}"`
+          content: data.response || 'I apologize, but I couldn\'t generate a response. Please try again.'
         });
+        
+        // Update conversation history for context
+        this.conversationHistory.push(
+          { role: 'user', content: userMessage },
+          { role: 'assistant', content: data.response }
+        );
+        
+        // Update suggested questions if provided
+        if (data.suggestedQuestions && data.suggestedQuestions.length > 0) {
+          this.suggestedQuestions = data.suggestedQuestions;
+          this.showSuggestedQuestions = true;
+        }
+        
+      } catch (error) {
+        console.error('Error calling API:', error);
+        this.chatHistory.push({
+          role: 'assistant',
+          content: 'I apologize, but I\'m having trouble connecting. Please try again in a moment.'
+        });
+      } finally {
+        this.isLoading = false;
         this.scrollToBottom();
-      }, 500);
-      
-      console.log('Message sent:', this.currentMessage);
-      this.currentMessage = '';
-      this.scrollToBottom();
+      }
     },
     
     askSuggestedQuestion(question) {
+      if (this.isLoading) return;
       this.currentMessage = question;
       this.sendMessage();
     },
@@ -220,5 +281,14 @@ export default {
 }
 .sales-coach-container {
   pointer-events: all;
+}
+
+@keyframes bounce {
+  0%, 80%, 100% {
+    transform: scale(0);
+  }
+  40% {
+    transform: scale(1);
+  }
 }
 </style>
