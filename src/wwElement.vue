@@ -207,22 +207,34 @@ export default {
       this.scrollToBottom();
       
       try {
+        // Get API endpoint from WeWeb props or use default
+        const apiEndpoint = this.content.apiEndpoint || 'https://xcujkzbqaatboeskvmhl.supabase.co/functions/v1/package-sales-help';
+        const apiKey = this.content.apiKey;
+        
+        // Prepare headers
+        const headers = {
+          'Content-Type': 'application/json',
+        };
+        
+        // Add Authorization header if API key is provided
+        if (apiKey) {
+          headers['Authorization'] = `Bearer ${apiKey}`;
+        }
+        
         // Call the API
-        const response = await fetch('https://n8n.racqsolar.com.au/webhook/racq-sales-coach', {
+        const response = await fetch(apiEndpoint, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: headers,
           body: JSON.stringify({
+            packageData: this.content.packageData || {},
+            customerData: this.content.customerData || {},
             message: userMessage,
-            conversationHistory: this.conversationHistory,
-            customerContext: this.content.customerContext || {},
-            quoteData: this.content.quoteData || {}
+            chatHistory: this.conversationHistory
           })
         });
         
         if (!response.ok) {
-          throw new Error('API request failed');
+          throw new Error(`API request failed: ${response.status}`);
         }
         
         const data = await response.json();
