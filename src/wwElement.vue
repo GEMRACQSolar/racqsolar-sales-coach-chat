@@ -1,15 +1,30 @@
 <template>
   <div class="sales-coach-wrapper">
+    <!-- Minimized State -->
+    <div 
+      v-if="isMinimized" 
+      class="sales-coach-minimized"
+      @click="isMinimized = false"
+      style="position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: #FFE600; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.3); z-index: 9999;"
+    >
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="#003478">
+        <path d="M12 2C6.48 2 2 6.48 2 12c0 1.19.22 2.34.6 3.41L1.11 22l6.59-1.49c1.07.38 2.22.6 3.41.6 5.52 0 10-4.48 10-10S17.52 2 12 2zm0 18c-1.08 0-2.14-.21-3.13-.62l-.22-.12-3.48.79.79-3.48-.12-.22A7.91 7.91 0 0 1 4 12c0-4.41 3.59-8 8-8s8 3.59 8 8-3.59 8-8 8z"/>
+        <circle cx="8.5" cy="9.5" r="1"/>
+        <circle cx="12" cy="9.5" r="1"/>
+        <circle cx="15.5" cy="9.5" r="1"/>
+      </svg>
+    </div>
+
     <!-- Chat Container -->
     <div 
-      v-if="isVisible" 
+      v-if="!isMinimized" 
       class="sales-coach-container"
       style="position: fixed; bottom: 20px; right: 20px; width: 380px; height: 600px; background: #1a1a2e; border-radius: 12px; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.4); z-index: 9999;"
     >
       <!-- Header -->
       <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #003478; border-radius: 12px 12px 0 0; color: white;">
         <h3 style="margin: 0; font-size: 16px;">Sales Coach</h3>
-        <button @click="closeChat" style="background: none; border: none; color: white; cursor: pointer; font-size: 20px;">✕</button>
+        <button @click="isMinimized = true" style="background: none; border: none; color: white; cursor: pointer; font-size: 20px;">－</button>
       </div>
 
       <!-- Messages -->
@@ -90,7 +105,7 @@ export default {
   
   data() {
     return {
-      isVisible: true,
+      isMinimized: false,
       currentMessage: '',
       chatHistory: [],
       hasInitialized: false,
@@ -105,31 +120,23 @@ export default {
     console.log('🎯 Sales Coach Chat Component Mounted');
     console.log('Props:', this.content);
     
-    // Initialize based on current prop values
-    this.initializeChat();
+    // Start minimized
+    this.isMinimized = true;
+    
+    // Wait for packageData before initializing
+    this.checkAndInitialize();
   },
   
   watch: {
-    'content.showChat': {
+    'content.packageData': {
       handler(newVal) {
-        console.log('🔄 showChat changed:', newVal);
-        this.isVisible = newVal === true || newVal === 'true';
-      },
-      immediate: true
-    },
-    
-    'content.initialResponse': {
-      handler(newVal) {
-        console.log('🔄 initialResponse changed:', newVal);
-        if (newVal && !this.hasInitialized) {
-          this.chatHistory = [{
-            role: 'assistant',
-            content: newVal
-          }];
-          this.hasInitialized = true;
+        console.log('🔄 packageData changed:', newVal);
+        if (newVal && newVal.systemType && !this.hasInitialized) {
+          this.initializeChat();
         }
       },
-      immediate: true
+      immediate: true,
+      deep: true
     },
     
     'content.suggestedQuestions': {
@@ -156,13 +163,26 @@ export default {
   },
   
   methods: {
-    initializeChat() {
-      // First check if we should call the API for initial response
-      if (!this.hasInitialized) {
-        this.hasInitialized = true;
-        // Call API with empty message to get initial greeting
-        this.callAPI('');
+    checkAndInitialize() {
+      // Check if packageData is available
+      if (this.content.packageData && this.content.packageData.systemType && !this.hasInitialized) {
+        this.initializeChat();
+      } else {
+        console.log('Waiting for packageData...');
+        // Check again in 500ms
+        setTimeout(() => {
+          if (!this.hasInitialized) {
+            this.checkAndInitialize();
+          }
+        }, 500);
       }
+    },
+    
+    initializeChat() {
+      console.log('🚀 Initializing chat with packageData:', this.content.packageData);
+      this.hasInitialized = true;
+      // Call API with empty message to get initial greeting
+      this.callAPI('');
     },
     
     formatMessage(text) {
@@ -172,13 +192,6 @@ export default {
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.*?)\*/g, '<em>$1</em>')
         .replace(/\n/g, '<br>'); // Also handle line breaks
-    },
-    
-    closeChat() {
-      this.isVisible = false;
-      console.log('Chat closed');
-      // Emit event to update WeWeb
-      this.$emit('update:content', { ...this.content, showChat: false });
     },
     
     async callAPI(userMessage) {
@@ -196,6 +209,8 @@ export default {
         if (apiKey) {
           headers['Authorization'] = `Bearer ${apiKey}`;
         }
+        
+        console.log('📡 Calling API with packageData:', this.content.packageData);
         
         // Call the API
         const response = await fetch(apiEndpoint, {
@@ -292,9 +307,21 @@ export default {
 .sales-coach-wrapper {
   pointer-events: none;
 }
-.sales-coach-container {
+.sales-coach-container,
+.sales-coach-minimized {
   pointer-events: all;
+}
+
+.sales-coach-container {
   max-height: 80vh;
+}
+
+.sales-coach-minimized {
+  transition: all 0.3s ease;
+}
+
+.sales-coach-minimized:hover {
+  transform: scale(1.1);
 }
 
 .message-content {
@@ -327,6 +354,11 @@ export default {
     height: 70vh !important;
     right: 10px !important;
     bottom: 10px !important;
+  }
+  
+  .sales-coach-minimized {
+    width: 50px !important;
+    height: 50px !important;
   }
 }
 </style>
