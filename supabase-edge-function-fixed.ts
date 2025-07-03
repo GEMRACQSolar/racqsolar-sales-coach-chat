@@ -1,38 +1,30 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
 };
-
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
-
-serve(async (req) => {
+serve(async (req)=>{
   if (req.method === 'OPTIONS') {
     return new Response('ok', {
       headers: corsHeaders
     });
   }
-
   try {
     const body = await req.json();
     const { packageData = {}, customerData = {}, message = '', chatHistory = [] } = body;
-
     // Ensure chatHistory is an array
     const validChatHistory = Array.isArray(chatHistory) ? chatHistory : [];
-
     // Log incoming data for debugging
     console.log('Received packageData:', JSON.stringify(packageData, null, 2));
     console.log('Received customerData:', JSON.stringify(customerData, null, 2));
     console.log('Received chatHistory:', JSON.stringify(validChatHistory, null, 2));
-
     // Generate AI response
     const response = await generateAIResponse(packageData, customerData, message, validChatHistory);
-
     return new Response(JSON.stringify({
       success: true,
       response,
-      suggestedQuestions: getSuggestedQuestions(packageData, customerData, validChatHistory)
+      suggestedQuestions: getSuggestedQuestions(packageData, customerData, validChatHistory, message)
     }), {
       headers: {
         ...corsHeaders,
@@ -54,73 +46,104 @@ serve(async (req) => {
     });
   }
 });
-
 async function generateAIResponse(packageData, customerData, message, chatHistory) {
   // Handle both camelCase and snake_case field names
   const systemType = packageData?.system_type || packageData?.systemType;
   const systemSize = packageData?.system_size_kw || packageData?.systemSize;
   const basePrice = packageData?.base_price || packageData?.basePrice;
   const displayName = packageData?.display_name || packageData?.name;
-
+  
+  // Extract monthly bill - handle various field formats
+  const monthlyBill = customerData?.monthlyBill || customerData?.monthly_bill || customerData?.energyData?.monthlyBill || 'Not specified';
+  
   // Ensure we have required fields
   if (!packageData || !systemType) {
     console.error('Invalid packageData:', packageData);
     return "I need more information about the package to help you. Please make sure a package is selected.";
   }
+  
+  // Handle initial greeting specially
+  const userPrompt = message || "INITIAL_GREETING";
+  
+  // Map monthly bill values to readable format
+  const billMap = {
+    'under100': 'Under $100/month',
+    '100to200': '$100-$200/month',
+    'over200': 'Over $200/month',
+    'energyUseUnsure': 'Not specified'
+  };
+  const readableBill = billMap[monthlyBill] || monthlyBill;
+  
+  const systemPrompt = `You are RACQ Solar's expert sales coach. 
 
-  const systemPrompt = `You are RACQ Solar's expert sales coach. Your job is to give sales staff quick, actionable advice during live customer calls.
+CRITICAL: If the user prompt is "INITIAL_GREETING", respond with ONLY:
+"G'day! I'm your RACQ Solar sales coach.
+
+Click a question below, or type your own 👇"
+
+DO NOT provide any other content if it's INITIAL_GREETING.
+
+Otherwise, you're using the STRAIGHT LINE SALES METHOD. Your goal: help staff move prospects efficiently to the sale.
 
 RESPONSE RULES:
-- Keep responses under 100 words
-- Give 1-2 specific talking points only
-- Use proper formatting: **bold** for emphasis, bullet points for lists
-- Be direct and actionable
-- Focus on closing the sale
+1. Maximum 100 words
+2. Focus on ONE thing only
+3. Use **bold** for emphasis
+4. End with ONE specific action
+5. Be conversational and practical
 
-CURRENT PACKAGE:
-- System: ${displayName} (${systemSize}kW ${systemType})
+CURRENT DEAL:
+- Package: ${displayName} (${systemSize}kW)
 - Price: $${basePrice}
-- Customer Bill: ${customerData.monthlyBill || 'Unknown'}
+- Type: ${systemType}
+- Customer Bill: ${readableBill}
 
-KEY ASSETS TO USE STRATEGICALLY:
+KEY CONTEXT:
+${monthlyBill === 'under100' ? '- Small bill but still worth solar - focus on % savings not $ amount' : ''}
+${monthlyBill === '100to200' ? '- Perfect sweet spot for solar ROI - emphasize quick payback' : ''}
+${monthlyBill === 'over200' ? '- High bills = massive savings opportunity - go big on numbers' : ''}
+${systemType.includes('battery') ? '- Battery rebate urgency - $355/kWh ending soon' : ''}
+${systemType === 'pv_only' ? '- No battery = lower entry price, but mention future option' : ''}
 
-TRUST FACTORS:
-- RACQ: 120+ years Queensland trust
-- GEM Energy: $250M+ projects, Australia Zoo, CSIRO
+STRAIGHT LINE PRINCIPLES:
+Build THREE CERTAINTIES:
+1. Product: They KNOW this solves their problem
+2. Company: They TRUST RACQ Solar  
+3. You: They believe YOU can deliver
+
+KEY KNOWLEDGE (use strategically):
+
+PRODUCT POINTS:
+- SunPower: 100x more reliable, 30-year warranty
+- Savings: 50-70% bill reduction (PV only), 80-90% (with battery)
+- Federal battery rebate: $355/kWh (decreasing yearly)
+
+COMPANY POINTS:
+- RACQ: 120+ years serving Queensland
+- 24% of QLD installations are substandard - we're different
 - 10-year workmanship warranty
-- Brisbane office for ongoing support
 
-QUALITY ADVANTAGES:
-- SunPower: 100x more reliable than standard panels
-- 30-year warranty vs 12-25 years standard
-- "The Apple of solar panels"
+URGENCY BUILDERS:
+- Rebates decrease annually
+- Electricity prices rising 
+- Limited installation slots
 
-INDUSTRY PROBLEMS:
-- 24% of QLD installs are substandard
-- 50%+ systems are "orphaned" (installer gone)
-
-SYSTEM-SPECIFIC POINTS:
-${systemType === 'pv_only' ? '- 50-70% bill reduction possible\n- Suggest battery-ready upgrade for future' : ''}
-${systemType === 'pv_battery' ? '- 80-90% energy independence\n- Federal battery rebate maximized' : ''}
-${systemType === 'battery_only' ? '- Maximize existing solar investment\n- Federal rebate available NOW' : ''}
-
-Choose the most relevant 1-2 points for this specific customer question. Be strategic, not comprehensive.`;
-
-  const userPrompt = message || "Help me explain why this package is perfect for this customer";
+Remember: You're coaching the salesperson, not the customer.`;
 
   // Build conversation history for context
   const safeHistory = Array.isArray(chatHistory) ? chatHistory : [];
+  
   const messages = [
-    ...safeHistory.map((msg) => ({
-      role: msg.role === 'user' ? 'user' : 'assistant',
-      content: msg.content || ''
-    })),
+    ...safeHistory.map((msg)=>({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.content || ''
+      })),
     {
       role: "user",
       content: userPrompt
     }
   ];
-
+  
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -131,65 +154,94 @@ Choose the most relevant 1-2 points for this specific customer question. Be stra
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 150, // Reduced from 500 to force shorter responses
+        max_tokens: 200,
         system: systemPrompt,
         messages: messages,
         temperature: 0.7
       })
     });
-
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Anthropic API error:', response.status, errorText);
       throw new Error(`Anthropic API error: ${response.status}`);
     }
-
     const data = await response.json();
     return data.content[0].text;
   } catch (error) {
     console.error('AI generation error:', error);
-    // Shorter fallback response
-    const fallbackSystemType = systemType?.replace(/_/g, ' ') || 'solar';
-    const tier = packageData?.tier || 'selected';
-    
-    return `**Quick talking points for this ${tier} ${systemSize}kW system:**
+    return `**Quick tip:** Focus on their biggest pain point with electricity costs.
 
-• **RACQ reliability** - 120+ years of Queensland trust
-• **SunPower quality** - 100x more reliable than standard panels
-
-What's their main concern?`;
+Ask: "What frustrates you most about your current electricity situation?"`;
   }
 }
 
-function getSuggestedQuestions(packageData, customerData, chatHistory) {
-  // Handle both field name formats
+function getSuggestedQuestions(packageData, customerData, chatHistory, lastMessage) {
   const systemType = packageData?.system_type || packageData?.systemType;
-
-  // Shorter, more focused questions
-  const questions = [];
-
-  // Always relevant
-  questions.push("Handle price objection");
-
-  // Package-specific with shorter text
-  if (systemType === 'pv_only') {
-    questions.push("Why upgrade to battery-ready?");
-  } else if (systemType?.includes('battery')) {
-    questions.push("Explain battery rebate");
-  }
-
-  // Customer-specific
-  if (customerData?.monthlyBill === 'over200') {
-    questions.push("Justify system size");
-  }
-
-  // Conversation-aware
+  const monthlyBill = customerData?.monthlyBill || customerData?.monthly_bill || customerData?.energyData?.monthlyBill;
   const safeHistory = Array.isArray(chatHistory) ? chatHistory : [];
+  const tier = packageData?.tier || 'selected';
+  
+  // Initial questions - practical and specific
   if (safeHistory.length === 0) {
-    questions.push("Why choose RACQ Solar?");
-  } else {
-    questions.push("vs competitors");
+    return [
+      `Tell me about this ${tier} package`,
+      "How do I start the conversation?",
+      "What objections should I expect?",
+      "Why RACQ over competitors?"
+    ];
   }
-
-  return questions.slice(0, 4);
+  
+  // Dynamic questions based on conversation context
+  const questions = [];
+  const lastMsg = lastMessage?.toLowerCase() || '';
+  const lastResponse = safeHistory[safeHistory.length - 1]?.content?.toLowerCase() || '';
+  
+  // Context-aware questions
+  if (lastMsg.includes('price') || lastMsg.includes('cost') || lastMsg.includes('expensive')) {
+    questions.push("They say it's too expensive");
+    questions.push("Show them the ROI calculation");
+    questions.push("Payment plan options?");
+  } else if (lastMsg.includes('think') || lastMsg.includes('consider')) {
+    questions.push("Create urgency now");
+    questions.push("What happens if they wait?");
+    questions.push("Lock in today's rebates");
+  } else if (lastMsg.includes('battery')) {
+    questions.push("Explain battery benefits");
+    questions.push("Battery rebate deadline?");
+    questions.push("Why add battery now?");
+  } else if (lastMsg.includes('open') || lastMsg.includes('start')) {
+    questions.push("What's their main concern?");
+    questions.push("Qualifying questions to ask");
+    questions.push("Build rapport quickly");
+  } else {
+    // General helpful questions based on stage
+    if (safeHistory.length < 3) {
+      questions.push("Identify their pain point");
+      questions.push("Build trust in RACQ");
+    } else if (safeHistory.length < 6) {
+      questions.push("Handle their objection");
+      questions.push("Create urgency");
+    } else {
+      questions.push("Close the deal now");
+      questions.push("Final push needed");
+    }
+  }
+  
+  // Always include one package-specific question
+  if (systemType === 'pv_only') {
+    questions.push("Mention battery upgrade option");
+  } else if (systemType.includes('battery')) {
+    questions.push("Emphasize energy independence");
+  }
+  
+  // Bill-specific question
+  if (monthlyBill === 'over200') {
+    questions.push("Show massive savings potential");
+  } else if (monthlyBill === 'under100') {
+    questions.push("Justify solar for small bills");
+  }
+  
+  // Remove duplicates and return top 4
+  const uniqueQuestions = [...new Set(questions)];
+  return uniqueQuestions.slice(0, 4);
 }
