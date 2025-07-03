@@ -112,6 +112,14 @@ export default {
     console.log('🔍 Initial Response type:', typeof this.content.initialResponse);
     console.log('🔍 Package Data:', this.content.packageData);
     console.log('🔍 Show Chat:', this.content.showChat);
+    
+    // TEMPORARY TEST: Simulate receiving data
+    if (!this.content.showChat && !this.content.initialResponse) {
+      console.log('🧪 TEST MODE: Simulating data reception');
+      setTimeout(() => {
+        this.testWithMockData();
+      }, 2000);
+    }
   },
   
   data() {
@@ -186,6 +194,35 @@ export default {
   },
   
   methods: {
+    // TEST METHOD
+    testWithMockData() {
+      console.log('🧪 Running test with mock data');
+      
+      // Simulate showChat being true
+      this.isVisible = true;
+      this.isMinimized = false;
+      
+      // Simulate initial response
+      const mockResponse = {
+        response: "TEST: Hello! I'm your RACQ Solar Sales Coach. This is a test message to verify the component is working correctly.",
+        suggestedQuestions: [
+          "How do solar panels work?",
+          "What's included in my quote?",
+          "Tell me about the warranty"
+        ]
+      };
+      
+      this.hasInitialized = true;
+      this.chatHistory.push({
+        id: Date.now(),
+        role: 'assistant',
+        content: mockResponse.response,
+        suggestedQuestions: mockResponse.suggestedQuestions
+      });
+      
+      console.log('✅ Test data loaded successfully');
+    },
+    
     openChat() {
       console.log('📂 Opening chat...');
       console.log('📂 Initial Response at open:', this.content.initialResponse);
