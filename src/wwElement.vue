@@ -194,13 +194,16 @@ export default {
   },
   
   methods: {
-    // TEST METHOD
+    // TEST METHOD - UPDATED
     testWithMockData() {
       console.log('🧪 Running test with mock data');
+      console.log('🧪 Before test - isVisible:', this.isVisible);
       
       // Simulate showChat being true
       this.isVisible = true;
       this.isMinimized = false;
+      
+      console.log('🧪 After setting - isVisible:', this.isVisible);
       
       // Simulate initial response
       const mockResponse = {
@@ -220,7 +223,19 @@ export default {
         suggestedQuestions: mockResponse.suggestedQuestions
       });
       
+      // Force Vue to update
+      this.$forceUpdate();
+      
       console.log('✅ Test data loaded successfully');
+      console.log('🧪 Final state - isVisible:', this.isVisible);
+      console.log('🧪 Chat history length:', this.chatHistory.length);
+      
+      // Also try nextTick to ensure DOM updates
+      this.$nextTick(() => {
+        console.log('🧪 After nextTick - DOM should be updated');
+        const chatElement = document.querySelector('.sales-coach-container');
+        console.log('🧪 Chat element found:', !!chatElement);
+      });
     },
     
     openChat() {
