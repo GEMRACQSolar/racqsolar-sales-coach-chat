@@ -2,7 +2,7 @@
   <div class="sales-coach-wrapper">
     <!-- Test indicator -->
     <div style="position: fixed; top: 20px; left: 20px; background: #4CAF50; color: white; padding: 10px; border-radius: 4px; z-index: 10000;">
-      Component Rendering ✓ - With Watchers
+      Component Rendering ✓ - With Suggested Questions
     </div>
     
     <!-- Chat Container -->
@@ -33,6 +33,23 @@
           }"
         >
           {{ message.content }}
+        </div>
+        
+        <!-- Suggested Questions -->
+        <div v-if="showSuggestedQuestions && suggestedQuestions.length > 0" style="margin-top: 15px;">
+          <p style="color: #888; font-size: 12px; margin-bottom: 10px;">Suggested questions:</p>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <button 
+              v-for="(question, index) in suggestedQuestions" 
+              :key="'q-' + index"
+              @click="askSuggestedQuestion(question)"
+              style="background: rgba(255, 230, 0, 0.1); border: 1px solid rgba(255, 230, 0, 0.3); color: #FFE600; padding: 8px 12px; border-radius: 6px; text-align: left; cursor: pointer; font-size: 13px; transition: all 0.2s;"
+              @mouseover="$event.target.style.background = 'rgba(255, 230, 0, 0.2)'"
+              @mouseout="$event.target.style.background = 'rgba(255, 230, 0, 0.1)'"
+            >
+              {{ question }}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -67,12 +84,14 @@ export default {
       isVisible: true,
       currentMessage: '',
       chatHistory: [],
-      hasInitialized: false
+      hasInitialized: false,
+      showSuggestedQuestions: true,
+      suggestedQuestions: []
     }
   },
   
   mounted() {
-    console.log('🎯 PROGRESSIVE TEST - WITH WATCHERS');
+    console.log('🎯 PROGRESSIVE TEST - WITH SUGGESTED QUESTIONS');
     console.log('Props:', this.content);
     
     // Initialize based on current prop values
@@ -100,6 +119,28 @@ export default {
         }
       },
       immediate: true
+    },
+    
+    'content.suggestedQuestions': {
+      handler(newVal) {
+        console.log('🔄 suggestedQuestions changed:', newVal);
+        if (newVal) {
+          // Handle if it's a string (JSON) or array
+          if (typeof newVal === 'string') {
+            try {
+              this.suggestedQuestions = JSON.parse(newVal);
+            } catch (e) {
+              console.log('Could not parse suggested questions:', e);
+              this.suggestedQuestions = [];
+            }
+          } else if (Array.isArray(newVal)) {
+            this.suggestedQuestions = newVal;
+          } else {
+            this.suggestedQuestions = [];
+          }
+        }
+      },
+      immediate: true
     }
   },
   
@@ -111,6 +152,15 @@ export default {
           role: 'assistant',
           content: 'Hello! I\'m your RACQ Solar Sales Coach. How can I help you today?'
         }];
+      }
+      
+      // Set default suggested questions for testing
+      if (this.suggestedQuestions.length === 0) {
+        this.suggestedQuestions = [
+          "How do I handle price objections?",
+          "What makes RACQ Solar different?",
+          "Tell me about battery storage benefits"
+        ];
       }
     },
     
@@ -130,6 +180,9 @@ export default {
         content: this.currentMessage
       });
       
+      // Hide suggested questions after first message
+      this.showSuggestedQuestions = false;
+      
       // Add fake assistant response for testing
       const userMessage = this.currentMessage;
       setTimeout(() => {
@@ -143,6 +196,11 @@ export default {
       console.log('Message sent:', this.currentMessage);
       this.currentMessage = '';
       this.scrollToBottom();
+    },
+    
+    askSuggestedQuestion(question) {
+      this.currentMessage = question;
+      this.sendMessage();
     },
     
     scrollToBottom() {
