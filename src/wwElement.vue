@@ -105,6 +105,15 @@ export default {
     'trigger-event'
   ],
   
+  mounted() {
+    console.log('🚀 Sales Coach Component Mounted');
+    console.log('📦 Full content object:', JSON.stringify(this.content, null, 2));
+    console.log('🔍 Initial Response:', this.content.initialResponse);
+    console.log('🔍 Initial Response type:', typeof this.content.initialResponse);
+    console.log('🔍 Package Data:', this.content.packageData);
+    console.log('🔍 Show Chat:', this.content.showChat);
+  },
+  
   data() {
     return {
       isVisible: false,
@@ -126,6 +135,7 @@ export default {
   watch: {
     'content.showChat': {
       handler(newVal) {
+        console.log('👀 Show Chat changed to:', newVal);
         if (newVal && !this.isVisible) {
           this.openChat();
         } else if (!newVal && this.isVisible) {
@@ -138,7 +148,14 @@ export default {
     // Watch for initial response from workflow
     'content.initialResponse': {
       handler(newVal) {
+        console.log('📨 Initial Response watcher triggered');
+        console.log('📨 New value:', newVal);
+        console.log('📨 New value type:', typeof newVal);
+        console.log('📨 Is visible?', this.isVisible);
+        console.log('📨 Has initialized?', this.hasInitialized);
+        
         if (newVal && !this.hasInitialized && this.isVisible) {
+          console.log('✅ Processing initial response...');
           this.hasInitialized = true;
           
           // Add the initial response to chat history
@@ -148,6 +165,8 @@ export default {
             content: newVal.response || newVal,
             suggestedQuestions: newVal.suggestedQuestions || []
           };
+          
+          console.log('💬 Assistant message created:', assistantMessage);
           
           this.chatHistory.push(assistantMessage);
           
@@ -168,6 +187,10 @@ export default {
   
   methods: {
     openChat() {
+      console.log('📂 Opening chat...');
+      console.log('📂 Initial Response at open:', this.content.initialResponse);
+      console.log('📂 Has initialized?', this.hasInitialized);
+      
       this.isVisible = true;
       this.isMinimized = false;
       
@@ -178,6 +201,7 @@ export default {
       
       // Check if we have an initial response to display
       if (!this.hasInitialized && this.content.initialResponse) {
+        console.log('🎯 Processing initial response in openChat...');
         this.hasInitialized = true;
         
         const assistantMessage = {
@@ -186,6 +210,8 @@ export default {
           content: this.content.initialResponse.response || this.content.initialResponse,
           suggestedQuestions: this.content.initialResponse.suggestedQuestions || []
         };
+        
+        console.log('💬 Assistant message in openChat:', assistantMessage);
         
         this.chatHistory.push(assistantMessage);
         
@@ -244,6 +270,8 @@ export default {
           }))
         };
         
+        console.log('📤 Sending API request:', requestData);
+        
         // Make API call
         const response = await fetch(this.content.apiEndpoint, {
           method: 'POST',
@@ -260,6 +288,7 @@ export default {
         }
         
         const data = await response.json();
+        console.log('📥 API Response:', data);
         
         // Add assistant response
         const assistantMessage = {
