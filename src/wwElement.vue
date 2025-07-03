@@ -1,20 +1,15 @@
 <template>
   <div class="sales-coach-wrapper">
-    <!-- Test indicator -->
-    <div style="position: fixed; top: 20px; left: 20px; background: #4CAF50; color: white; padding: 10px; border-radius: 4px; z-index: 10000;">
-      Component Rendering ✓ - With API Integration
-    </div>
-    
     <!-- Chat Container -->
     <div 
       v-if="isVisible" 
       class="sales-coach-container"
-      style="position: fixed; bottom: 20px; right: 20px; width: 380px; height: 500px; background: #1a1a2e; border-radius: 12px; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.4); z-index: 9999;"
+      style="position: fixed; bottom: 20px; right: 20px; width: 380px; height: 600px; background: #1a1a2e; border-radius: 12px; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.4); z-index: 9999;"
     >
       <!-- Header -->
       <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #003478; border-radius: 12px 12px 0 0; color: white;">
         <h3 style="margin: 0; font-size: 16px;">Sales Coach</h3>
-        <button @click="closeChat" style="background: none; border: none; color: white; cursor: pointer;">✕</button>
+        <button @click="closeChat" style="background: none; border: none; color: white; cursor: pointer; font-size: 20px;">✕</button>
       </div>
 
       <!-- Messages -->
@@ -32,7 +27,7 @@
             marginRight: message.role === 'user' ? '0' : '50px'
           }"
         >
-          {{ message.content }}
+          <div v-html="formatMessage(message.content)" class="message-content"></div>
         </div>
         
         <!-- Loading indicator -->
@@ -76,7 +71,7 @@
         <button 
           @click="sendMessage"
           :disabled="isLoading || !currentMessage.trim()"
-          style="background: #FFE600; color: #003478; border: none; border-radius: 8px; padding: 10px 20px; cursor: pointer; opacity: 1;"
+          style="background: #FFE600; color: #003478; border: none; border-radius: 8px; padding: 10px 20px; cursor: pointer; font-weight: 500;"
           :style="{ opacity: (isLoading || !currentMessage.trim()) ? '0.5' : '1' }"
         >
           Send
@@ -107,7 +102,7 @@ export default {
   },
   
   mounted() {
-    console.log('🎯 PROGRESSIVE TEST - WITH API INTEGRATION');
+    console.log('🎯 Sales Coach Chat Component Mounted');
     console.log('Props:', this.content);
     
     // Initialize based on current prop values
@@ -162,22 +157,21 @@ export default {
   
   methods: {
     initializeChat() {
-      // If no initialResponse in props, use default
-      if (!this.content?.initialResponse && this.chatHistory.length === 0) {
-        this.chatHistory = [{
-          role: 'assistant',
-          content: 'Hello! I\'m your RACQ Solar Sales Coach. How can I help you today?'
-        }];
+      // First check if we should call the API for initial response
+      if (!this.hasInitialized) {
+        this.hasInitialized = true;
+        // Call API with empty message to get initial greeting
+        this.callAPI('');
       }
-      
-      // Set default suggested questions for testing
-      if (this.suggestedQuestions.length === 0) {
-        this.suggestedQuestions = [
-          "How do I handle price objections?",
-          "What makes RACQ Solar different?",
-          "Tell me about battery storage benefits"
-        ];
-      }
+    },
+    
+    formatMessage(text) {
+      // Convert markdown bold to HTML strong tags
+      // Also handle italics
+      return text
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/\n/g, '<br>'); // Also handle line breaks
     },
     
     closeChat() {
@@ -187,25 +181,7 @@ export default {
       this.$emit('update:content', { ...this.content, showChat: false });
     },
     
-    async sendMessage() {
-      if (!this.currentMessage.trim() || this.isLoading) return;
-      
-      const userMessage = this.currentMessage.trim();
-      
-      // Add user message to chat
-      this.chatHistory.push({
-        role: 'user',
-        content: userMessage
-      });
-      
-      // Hide suggested questions after first message
-      this.showSuggestedQuestions = false;
-      
-      // Clear input and show loading
-      this.currentMessage = '';
-      this.isLoading = true;
-      this.scrollToBottom();
-      
+    async callAPI(userMessage) {
       try {
         // Get API endpoint from WeWeb props or use default
         const apiEndpoint = this.content.apiEndpoint || 'https://xcujkzbqaatboeskvmhl.supabase.co/functions/v1/package-sales-help';
@@ -246,11 +222,13 @@ export default {
           content: data.response || 'I apologize, but I couldn\'t generate a response. Please try again.'
         });
         
-        // Update conversation history for context
-        this.conversationHistory.push(
-          { role: 'user', content: userMessage },
-          { role: 'assistant', content: data.response }
-        );
+        // Update conversation history for context (but only if it's not the initial greeting)
+        if (userMessage) {
+          this.conversationHistory.push(
+            { role: 'user', content: userMessage },
+            { role: 'assistant', content: data.response }
+          );
+        }
         
         // Update suggested questions if provided
         if (data.suggestedQuestions && data.suggestedQuestions.length > 0) {
@@ -268,6 +246,29 @@ export default {
         this.isLoading = false;
         this.scrollToBottom();
       }
+    },
+    
+    async sendMessage() {
+      if (!this.currentMessage.trim() || this.isLoading) return;
+      
+      const userMessage = this.currentMessage.trim();
+      
+      // Add user message to chat
+      this.chatHistory.push({
+        role: 'user',
+        content: userMessage
+      });
+      
+      // Hide suggested questions after first message
+      this.showSuggestedQuestions = false;
+      
+      // Clear input and show loading
+      this.currentMessage = '';
+      this.isLoading = true;
+      this.scrollToBottom();
+      
+      // Call the API
+      await this.callAPI(userMessage);
     },
     
     askSuggestedQuestion(question) {
@@ -293,6 +294,21 @@ export default {
 }
 .sales-coach-container {
   pointer-events: all;
+  max-height: 80vh;
+}
+
+.message-content {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.4;
+}
+
+.message-content strong {
+  font-weight: 600;
+}
+
+.message-content em {
+  font-style: italic;
 }
 
 @keyframes bounce {
@@ -301,6 +317,16 @@ export default {
   }
   40% {
     transform: scale(1);
+  }
+}
+
+/* Mobile responsiveness */
+@media (max-width: 480px) {
+  .sales-coach-container {
+    width: calc(100vw - 20px) !important;
+    height: 70vh !important;
+    right: 10px !important;
+    bottom: 10px !important;
   }
 }
 </style>
