@@ -2,7 +2,7 @@
   <div class="sales-coach-wrapper">
     <!-- Test indicator -->
     <div style="position: fixed; top: 20px; left: 20px; background: #4CAF50; color: white; padding: 10px; border-radius: 4px; z-index: 10000;">
-      Component Rendering ✓ - With Chat History
+      Component Rendering ✓ - With Watchers
     </div>
     
     <!-- Chat Container -->
@@ -66,22 +66,59 @@ export default {
     return {
       isVisible: true,
       currentMessage: '',
-      chatHistory: [
-        { role: 'assistant', content: 'Hello! I\'m your RACQ Solar Sales Coach. How can I help you today?' }
-      ]
+      chatHistory: [],
+      hasInitialized: false
     }
   },
   
   mounted() {
-    console.log('🎯 PROGRESSIVE TEST - CHAT WITH HISTORY ARRAY');
+    console.log('🎯 PROGRESSIVE TEST - WITH WATCHERS');
     console.log('Props:', this.content);
-    console.log('Initial chat history:', this.chatHistory);
+    
+    // Initialize based on current prop values
+    this.initializeChat();
+  },
+  
+  watch: {
+    'content.showChat': {
+      handler(newVal) {
+        console.log('🔄 showChat changed:', newVal);
+        this.isVisible = newVal === true || newVal === 'true';
+      },
+      immediate: true
+    },
+    
+    'content.initialResponse': {
+      handler(newVal) {
+        console.log('🔄 initialResponse changed:', newVal);
+        if (newVal && !this.hasInitialized) {
+          this.chatHistory = [{
+            role: 'assistant',
+            content: newVal
+          }];
+          this.hasInitialized = true;
+        }
+      },
+      immediate: true
+    }
   },
   
   methods: {
+    initializeChat() {
+      // If no initialResponse in props, use default
+      if (!this.content?.initialResponse && this.chatHistory.length === 0) {
+        this.chatHistory = [{
+          role: 'assistant',
+          content: 'Hello! I\'m your RACQ Solar Sales Coach. How can I help you today?'
+        }];
+      }
+    },
+    
     closeChat() {
       this.isVisible = false;
       console.log('Chat closed');
+      // Emit event to update WeWeb
+      this.$emit('update:content', { ...this.content, showChat: false });
     },
     
     sendMessage() {
@@ -94,10 +131,11 @@ export default {
       });
       
       // Add fake assistant response for testing
+      const userMessage = this.currentMessage;
       setTimeout(() => {
         this.chatHistory.push({
           role: 'assistant',
-          content: `I received your message: "${this.currentMessage}"`
+          content: `I received your message: "${userMessage}"`
         });
         this.scrollToBottom();
       }, 500);
